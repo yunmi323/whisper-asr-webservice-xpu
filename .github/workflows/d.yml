@@ -44,5 +44,5 @@ jobs:
         push: true
         # 指定用户/仓库名
         tags: |
-          ${{ secrets.DOCKER_USERNAME }}
-          ${{ secrets.DOCKER_USERNAME }}:${{ env.app_version }}
+          ${{ secrets.DOCKER_USERNAME }}/whispera770:latest
+          ${{ secrets.DOCKER_USERNAME }}/whispera770:${{ env.app_version }}
