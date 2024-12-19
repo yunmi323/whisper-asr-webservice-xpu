@@ -31,10 +31,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: Dockerfile.arc-xpu
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}:${{ github.event.release.tag_name }}
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/whispera770:${{ github.event.release.tag_name }}
 
       - name: Post build notifications
         run: echo "Docker image has been built and pushed successfully"
