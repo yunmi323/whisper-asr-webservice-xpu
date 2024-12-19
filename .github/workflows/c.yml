@@ -1,39 +1,40 @@
-name: Build and Release Docker Image
- 
+name: Build and Push Docker Image
+
 on:
-  push:
-    tags:
-      - '*'
- 
+  release:
+    types: [published]
+  workflow_dispatch:  # 允许手动触发工作流
+
 jobs:
-  build-and-release:
+  publish-docker:
     runs-on: ubuntu-latest
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
- 
-    - name: Build Docker Image
-      uses: docker/build-push-action@v2
-      with:
-        push: false
-        tags: user/app:latest
- 
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.ref_name }}
-        release_name: Release ${{ github.ref_name }}
-        body: |
-          Changes in this release:
-          - ...
-    - name: Upload Docker Image to Release
-      uses: easingthemes/docker-archive-action@v2.1.1
-      with:
-        image: user/app:latest
-        archive: docker
-        include_manifest: true
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        release_id: ${{ steps.create_release.outputs.id }}
+      - name: 拉取源码
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 1
+
+      - name: 设置 QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 登录到 DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 构建和推送 Docker hub
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.arc-xpu
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}:${{ github.event.release.tag_name }}
+
+      - name: Post build notifications
+        run: echo "Docker image has been built and pushed successfully"
