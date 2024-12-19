@@ -1,65 +1,60 @@
-# 工作流名称
-name: Build Docker Image
-
-# push tag 时触发执行
+name: docker images cicd
+# 触发器设置
 on:
   push:
-    tags:
-      - v*
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
 
-# 定义环境变量, 后面会使用
-# 定义 APP_NAME 用于 docker build-args
-# 定义 DOCKERHUB_REPO 标记 docker hub repo 名称
-env:
-  APP_NAME: httpproxy
-  DOCKERHUB_REPO: isayme/httpproxy
-
+# 项目任务，任务之间可以并行调度
 jobs:
-  main:
-    # 在 Ubuntu 上运行
+  build:
+  # 选择云端运行的环境
     runs-on: ubuntu-latest
     steps:
-      # git checkout 代码
-      - name: Checkout
-        uses: actions/checkout@v2
-      # 设置 QEMU, 后面 docker buildx 依赖此.
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
-      # 设置 Docker buildx, 方便构建 Multi platform 镜像
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-      # 登录 docker hub
-      - name: Login to DockerHub
-        uses: docker/login-action@v1
-        with:
-          # GitHub Repo => Settings => Secrets 增加 docker hub 登录密钥信息
-          # DOCKERHUB_USERNAME 是 docker hub 账号名.
-          # DOCKERHUB_TOKEN: docker hub => Account Setting => Security 创建.
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-      # 通过 git 命令获取当前 tag 信息, 存入环境变量 APP_VERSION
-      - name: Generate App Version
-        run: echo APP_VERSION=`git describe --tags --always` >> $GITHUB_ENV
-      # 构建 Docker 并推送到 Docker hub
-      - name: Build and push
-        id: docker_build
-        uses: docker/build-push-action@v2
-        with:
-          file: ./Dockerfile.arc-xpu
-          # 是否 docker push
-          push: true
-          # 生成多平台镜像, see https://github.com/docker-library/bashbrew/blob/v0.1.1/architecture/oci-platform.go
-          platforms: |
-            linux/386
-            linux/amd64
-            linux/arm/v6
-            linux/arm/v7
-            linux/arm64/v8
-          # docker build arg, 注入 APP_NAME/APP_VERSION
-          build-args: |
-            APP_NAME=${{ env.APP_NAME }}
-            APP_VERSION=${{ env.APP_VERSION }}
-          # 生成两个 docker tag: ${APP_VERSION} 和 latest
-          tags: |
-            ${{ env.DOCKERHUB_REPO }}:latest
-            ${{ env.DOCKERHUB_REPO }}:${{ env.APP_VERSION }}
+    # uses代表使用一个模块，此处使用的是checkout模块，将github项目文件导入到当前环境中
+    - uses: actions/checkout@v3
+    # 使用with跟在后面来为前面的模块输入参数
+      with:
+        submodules: 'true'
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    - name: Login to DockerHub
+      uses: docker/login-action@v2
+      with:
+    # 这里用到了github的secrets功能，避免账户和密码随仓库泄露
+       username: ${{ secrets.DOCKER_USERNAME }}
+       password: ${{ secrets.DOCKER_TOKEN }}
+    # 设置当前的发行版本tag
+    - name: Release version
+      id: release_version
+      run: |
+        app_version=$(cat version.py |sed -ne "s/APP_VERSION\s=\s'v\(.*\)'/\1/gp")
+        echo "app_version=$app_version" >> $GITHUB_ENV
+    # 开始构建镜像
+    - name: Build and push
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        file: Dockerfile.arc-xpu
+        build-args: |
+          GITHUB_TOKEN=${{ secrets.RELEASE_TOKEN }}
+        platforms: |
+          linux/amd64
+          linux/arm64
+          linux/arm
+        push: true
+        # 指定用户/仓库名
+        tags: |
+          ${{ secrets.DOCKER_USERNAME }}/kook-ticket-bot:latest
+          ${{ secrets.DOCKER_USERNAME }}/kook-ticket-bot:${{ env.app_version }}
+    # 这里是通过md文件自动生成dockerhub描述的模块，也可以不需要
+    - name: Docker Hub Description
+      uses: peter-evans/dockerhub-description@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+        repository: ${{ secrets.DOCKER_USERNAME }}/kook-ticket-bot
+        readme-filepath: ./README.md
