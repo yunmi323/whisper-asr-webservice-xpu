@@ -48,5 +48,5 @@ jobs:
         push: true
         # 指定用户/仓库名
         tags: |
-          ${{ secrets.DOCKER_USERNAME }}/kook-ticket-bot:latest
-          ${{ secrets.DOCKER_USERNAME }}/kook-ticket-bot:${{ env.app_version }}
+          ${{ secrets.DOCKER_USERNAME }}:latest
+          ${{ secrets.DOCKER_USERNAME }}:${{ env.app_version }}
